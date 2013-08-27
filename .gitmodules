@@ -1,0 +1,3 @@
+[submodule "lib/for-the-web"]
+	path = lib/for-the-web
+	url = git@github.com:drewc/ftw.git
