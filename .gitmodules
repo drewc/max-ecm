@@ -1,3 +1,6 @@
 [submodule "lib/for-the-web"]
 	path = lib/for-the-web
 	url = git@github.com:drewc/ftw.git
+[submodule "lib/lisp-on-lines"]
+	path = lib/lisp-on-lines
+	url = git@github.com:drewc/lisp-on-lines.git
