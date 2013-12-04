@@ -58,6 +58,10 @@
      :VALUE "Gnumeric_Excel:xlsx2"
      :mime-type "application/vnd.ms-excel"
      :pathname-type "xlsx")
+    (:NAME "[MS Excel™ 2007] ; ECMA 376 1st edition (2006); " 
+     :VALUE "Gnumeric_Excel:xlsx"
+     :mime-type "application/vnd.ms-excel"
+     :pathname-type "xlsx")
     (:NAME "PDF export" 
      :VALUE "Gnumeric_pdf:pdf_assistant"
      :mime-type "application/pdf"
