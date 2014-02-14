@@ -26,5 +26,11 @@ So (asdf:upgrade-asdf) and (ql:quickload :asdf).~%
  '(:sax :runes))
 
 (asdf:register-system-packages 
+ :st-json
+ '(:st-json))
+
+(asdf:register-system-packages 
  :cxml-stp 
  '(:cxml-stp :stp))
+
+
