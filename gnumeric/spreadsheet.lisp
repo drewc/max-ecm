@@ -27,6 +27,7 @@
    )
   (:import-from :alexandria #:with-output-to-file)
   (:export #:create-spreadsheet
+	   #:create-spreadsheet-from-alist
 	   #:make-spreadsheet-title))
 
 (in-package :max-ecm/gnumeric/spreadsheet)
@@ -111,7 +112,7 @@
 	 ;; 1.5) What is the longest word?
 	 (max-wl 
 	  (loop for ls in word-lengths
-	     :collect (apply #'max ls)))
+	     :collect (if ls (apply #'max ls) 1)))
 	 
 	 ;; 2) The longest word x 11pts is the width of the column
 	 ;; This is quite wrong for some things we should have a 'max
@@ -125,12 +126,13 @@
 		 :do (<column-info> 
 		      col 
 		      :unit (format 
-			     nil "~$" (* 11 (apply #'max ls)))
+			     nil "~$" (* 11 (if ls (apply #'max ls) 1)))
 		      :hard-size 1)))))
          ;; 3) The number of lines
 	 (number-of-lines
 	  (loop for wls in word-lengths
-	     :collect (let ((lines 0) (length 0) (max (apply #'max wls)))
+	     :collect (let ((lines 0) (length 0) 
+			    (max (if wls (apply #'max wls) 1)))
 			(loop for n in wls 
 			   do (let ((total (+ 1 length n))) 
 				(if (>= total max )
@@ -148,13 +150,17 @@
 	      (<row-info> 
 	       start-row :unit (format 
 				nil "~$" 
-				(* (apply #'max number-of-lines) 12.75)))))))
+				(* (if number-of-lines 
+				       (apply #'max number-of-lines)
+				       1)
+				   12.75)))))))
 	      
 	      
     (values header-rows header-cols)))
 
 (defun create-spreadsheet-from-alist (name alist
 				      &key 
+					(create-header? t)
 					(start-row 0)
 					(start-column 0))
   (flet ((adopt-children (adopter adoptee)
@@ -172,25 +178,27 @@
 	   (cells 
 	    (<gnm>   
 	      (<> ("gnm:Cells")
-		(loop :for (name . value) 
+		(when create-header? 
+		  (loop :for (name . value) 
 		   :in (first report) 
 		   :for i upfrom 0
 		   :do (<cell> 
 			name 
 			:row header-row
 			:column i
-			:value-type (cell-value-type 'string)))))))
+			:value-type (cell-value-type 'string))))))))
       (multiple-value-bind (header-rows header-columns) 
 	  (rows/cols-for-headings report-line 
 				  :start-column start-column
 				  :start-row header-row)
 	(stp:replace-child sheet old-cells cells)
 	(stp:delete-children styles)
-	(adopt-children 
-	 styles (<gnm> (<spreadsheet-header-styles>
-			:start-row header-row
-			:start-column start-column
-			:end-column (+ start-column (1- (length report-line))))))
+	(when create-header? 
+	  (adopt-children 
+	   styles (<gnm> (<spreadsheet-header-styles>
+			  :start-row header-row
+			  :start-column start-column
+			  :end-column (+ start-column (1- (length report-line)))))))
 	
 	(adopt-children 
 	 cells 
@@ -226,16 +234,16 @@
 			      (value-format 
 			       (cond ((equal value-type (cell-value-type 'float))
 				      "$#,##0_);[Red]($#,##0)")))
-			      (column-info (stp:find-child-if 
-					    (lambda (e) 
-					      (string= (princ-to-string column) 
-						       (stp:attribute-value e "No")))
-					    header-columns))
+			      (column-info 
+			       (stp:find-child-if 
+				  (lambda (e) 
+				    (string= (princ-to-string column) 
+					     (stp:attribute-value e "No")))
+				  header-columns))
 			      (column-width 
 			       (read-from-string 
-				(stp:attribute-value column-info "Unit")))
-			      )
-					     
+				(stp:attribute-value column-info "Unit"))))
+			
 			 ;; now, check the column. If the width is
 			 ;; to small for this, then make it bigger.
 			 (setf (stp:attribute-value column-info "Unit") 
@@ -246,8 +254,8 @@
 					    (cond ((equal (cell-value-type 'float)
 							  value-type)
 						   1)
-						  (t 1.5))))
-				       (/ (* 10 (length value)) den)))))			  			  
+						  (t 2.5))))
+				       (/ (* 10 (length value)) den)))))
 			 (<cell>  
 			  value
 			  :row row
