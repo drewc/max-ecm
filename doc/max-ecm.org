@@ -1,0 +1,613 @@
+#+TITLE: Maximum Electronic Claims Manager
+
+* JSON Server Interface (JSI)
+
+The Server communicates with the outside world primarily using JSON.
+
+** Miscellaneous Prefactory Notes
+
+The server protocol is defined in terms of HTTP GET, HTTP POST,
+(possibly) custom HTTP headers, and JSON.
+
+*** Response Envelope
+
+Most protocol responses are presented in a JSON object "envelope",
+allowing for out-of-band data transfer such as message-waiting
+notifications.
+
+**** Normal Response Envelope
+
+A response envelope will have either a "response" field or an "error"
+field, and the HTTP response code will tend to be 200 (OK) when a
+"response" field is present and other response codes as appropriate
+when an "error" field is present.
+
+**** Paged Response Envelope
+# <<Prefactory Paged Response Envelope>>
+
+A paged response envelope will have either a "result\_page" field and
+a "query\_info" field, or an "error" field.  The HTTP response code
+will tend to be 200 (OK) when a "result\_page" field is present, and
+other response codes as appropriate when an "error" field is present.
+
+The query\_info structure is described in [[Complex Object Paged Query Info][Paged Query Info]].
+
+*** Error Handling
+
+There are two main forms of error response produced by the server.
+The first, and more general, is a [[Complex Object Protocol Error][Protocol Error]] response.  The
+second, used only for a limited number of endpoints, is a [[Complex Object OAuth Error][OAuth Error]]
+response.  For any error, the response code returned by the server
+will be something other than the default, typically either 500
+(internal server error) or 400 (bad request), although some errors are
+associated with situation-appropriate response codes.
+
+*** Authorization
+# <<Prefactory Authorization>>
+
+Most of the endpoints in this protocol require authorization before a
+request may be made.  In general, endpoints will accept either a
+[[Authorization Client
+ Password][Client Password]] or an [[Authorization Access Token][Access Token]] unless otherwise noted in the
+endpoint documentation.  The exceptions will fall into three
+categories.
+
+  1. Requests that do not require authorization.
+  2. Requests that require a [[Authorization Client Password][Client Password]].
+  3. Requests that require an [[Authorization Access Token][Access Token]].
+
+*** Permissions
+# <<Authorization Permissions>>
+
+Some endpoints require that a client have a particular named
+permission.  These permissions are associated with the client and all
+sessions created by the client.
+
+|--------------+-----------------------------------------|
+| permission   | description                             |
+|--------------+-----------------------------------------|
+| edit-catalog | The client may edit the auction catalog |
+
+*** OAuth
+# <<Authorization OAuth>>
+
+Authorized access to particular resources via this protocol is
+mediated by OAuth bearer tokens.
+
+Our implementation of OAuth diverges from the specification somewhat,
+though not in ways that should affect the overall security of the
+system or session data.  Known specific divergences are as follows:
+
+  - Unexpected errors during OAuth the authorization grant process
+    produce an response not in conformance to the specification for
+    [[http://tools.ietf.org/html/draft-ietf-oauth-v2-22#section-5.2][Error Response]], largely due to the specification not providing
+    mechanism for such.
+
+  - The server does not always send appropriate response headers,
+    but this is expected to improve over time.
+
+For futher information, see [[http://tools.ietf.org/html/draft-ietf-oauth-v2-22][The OAuth 2.0 Authorization Protocol]].
+
+*** Client Password
+# <<Authorization Client Password>>
+
+Client password authorization is based on HTTP Basic Authentication.
+Client programs are issued a username and password by the server
+developers for this purpose.  Policies for issuing client passwords
+are outside the scope of this document.
+
+*** Access Token
+# <<Authorization Access Token>>
+
+Access Tokens are OAuth 2.0 ``Bearer'' tokens, described in
+[[http://tools.ietf.org/html/draft-ietf-oauth-v2-bearer-08][The OAuth 2.0 Protocol: Bearer Tokens]].
+
+*** Paged Queries
+# <<Prefactory Paged Queries>>
+
+Some operations are designated as "Paged Query" operations.  These
+operations are considered to tend to return a lot of data or data that
+takes a while to obtain, and thus should be retrieved over the course
+of multiple requests from the server as opposed to all at once.
+
+*** Paged Query Parameters
+# <<Prefactory Paged Query Parameters>>
+
+Paged queries invariably accept the following additional optional
+parameters:
+
+|------+---------------------------------------------------------|
+| name | description                                             |
+|------+---------------------------------------------------------|
+| n    | The number of results to return per page                |
+| o    | The offset of the desired page within the query results | 
+
+The parameter ``n'' has a default which can vary on a per-operation
+basis, but is currently typically 20.  The parameter ``o'' defaults to
+zero.
+
+*** Paged Query Responses
+
+Paged queries use a particular response envelope structure.  See 
+[[Prefactory Paged Response Envelope][Paged Response Envelope]] and [[Complex Object Paged Response Envelope][Paged Response Envelope]] for more
+information.
+
+#+BEGIN_SRC lisp
+  (max-ecm/server:start)
+#+END_SRC
+
+** Simple Data Types
+*** Claim Transaction Type
+# <<Simple Type Claim Transaction Type>>
+*** Timestamp
+# <<Simple Type Timestamp>>
+
+All date-time types are to be encoded as strings in accordance with
+ISO 8601, extended format, combined date and time, with times to the
+minute or to the second, Zulu time.  The server always encodes
+timestamps to the second.
+
+*** Currency Code
+# <<Simple Type Currency Code>>
+
+Currency codes are encoded as strings drawn from a limited subset of
+the ISO 4217 currency codes.  Support for additional currencies is
+expected to improve over time, and users are encouraged to request
+support for specific additional currencies on an as-needed basis.
+
+#+ATTR_LaTeX: :environment longtable :align align=lp{8cm}
+|-------+----------------------|
+| value | description          |
+|-------+----------------------|
+| CAD   | Canadian Dollar      |
+| USD   | United States dollar |
+| GBP   | Pound sterling       |
+
+*** Price
+# <<Simple Type Price>>
+
+All monetary quantities are to be encoded as strings representing
+decimal numbers with two decimal places and at least one leading
+(possibly zero) digit.  The decimal separator is to be the full stop,
+or period character (ASCII 46, 0x2e).
+
+Currency codes are presently handled separately from prices.
+
+At present, prices may have at most ten digits before the decimal
+separator.
+
+The treatment of digit positions to the right of the decimal
+separator, and the decimal separator itself, may change in the future
+as support for additional currencies is developed.
+
+
+** Complex Objects
+# <<Complex Objects>>
+*** Person Record
+# <<Complex Object Person Record>>
+
+A JSON object with the following fields:
+
+|--------------+----------------+---------------------------------|
+| name         | type           | description                     |
+|--------------+----------------+---------------------------------|
+| type         | string         | The literal string "person"     |
+| id           | integer        | An ID for the person            |
+| first_name   | string or null | The first name of this person   |
+| last_name    | string or null | The last name of this person    |
+| company_name | string or null | The company name of this person |
+|              |                |                                 |
+
+*** Select Option 
+# <<Complex Object Select Option>>
+
+A JSON object which emulates the attributes of an [[http://www.w3.org/TR/html-markup/option.html][=<option/>=]] html5.
+element.
+
+|-------+-----------------+--------------------------------------|
+| name  | type            | description                          |
+|-------+-----------------+--------------------------------------|
+| label | string          | the text describing the =value=      |
+| value | /any json type/ | The value which the label represents |
+
+*** Search Object
+# <<Complex Object Search Object>>
+
+A JSON object with the following fields:
+
+|------+-----------------------------------+-----------------------------------------------|
+| name | type                              | description                                   |
+|------+-----------------------------------+-----------------------------------------------|
+| type | string or null                    | he type of [[*Complex%20Objects][Complex Object]] being searched for   |
+| q    | string or a [[*Complex%20Objects][Complex Object]] subset | The search query itself                       |
+
+*** Claim Record
+# <<Complex Object Claim Record>>
+
+A JSON object with the following fields:
+
+|----------------+----------------+--------------------------------------------------|
+| name           | type           | description                                      |
+|----------------+----------------+--------------------------------------------------|
+| type           | string         | The literal string "claim"                       |
+| id             | integer        | The "Claim Number"                               |
+
+*** Claim Transaction Record
+# <<Complex Object Claim Transaction Record>>
+
+A JSON object with the following fields:
+
+|----------------+----------------+--------------------------------------------------|
+| name           | type           | description                                      |
+|----------------+----------------+--------------------------------------------------|
+| type           | string         | The literal string "claim-transaction"           |
+| id             | integer        | A unique ID for the transaction                  |
+| claim_id       | integer        | The unique ID of a [[*Claim%20Record][Claim Record]]                  |
+| date           | string         | A [[Simple Type Timestamp][Timestamp]] for the time of this transaction     |
+| cheque\_number | string or null | The "Cheque Number" assigned to this transaction |
+
+*** OAuth Error
+# <<Complex Object OAuth Error>>
+
+An object with the following fields:
+
+|-------+--------+----------------------------------------|
+| name  | type   | description                            |
+|-------+--------+----------------------------------------|
+| error | string | The name of the specific type of error |
+
+This structure roughly corresponds to [[http://tools.ietf.org/html/draft-ietf-oauth-v2-22#section-5.2][The OAuth 2.0 Specification, Section 5.2]].
+
+As the OAuth specification error response structure does not include
+provision for non-protocol (internal server) errors, any protocol
+operation which is declared to return an [[Complex Object OAuth Error][OAuth Error]] may instead
+return a [[Complex Object Response Envelope][Response Envelope]] with an error field.  This response may be
+distinguished from [[Complex Object OAuth Error][OAuth Error]] by the type of the top-level "error"
+field: it will be a string in the OAuth case, and an object in the
+Envelope case.
+
+See [[http://tools.ietf.org/html/draft-ietf-oauth-v2-22][The OAuth 2.0 Authorization Protocol]] for more details.
+
+*** Paged Query Info
+# <<Complex Object Paged Query Info>>
+
+An object with the following fields:
+
+#+ATTR_LaTeX: :environment longtable :align align=llp{8cm}
+|---------------------+----------------+---------------------------------------------------------------------------------|
+| name                | type           | description                                                                     |
+|---------------------+----------------+---------------------------------------------------------------------------------|
+| base\_query         | string         | A URL for the first page of the search, with an unspecified (default) page size |
+| next\_page          | string or null | A URL for the next page of the search, with the current page size               |
+| prev\_page          | string or null | A URL for the previous page of the search, with the current page size           |
+| page\_size          | integer        | The number of results per page                                                  |
+| page\_start\_offset | integer        | The offset of the current page within the overall results                       |
+| total\_num\_results | integer        | The total number of results found by the search                                 |
+
+*** Paged Response Envelope
+# <<Complex Object Paged Response Envelope>>
+
+An object with the following fields:
+
+|--------------+--------+---------------------------------------------|
+| name         | type   | description                                 |
+|--------------+--------+---------------------------------------------|
+| result\_page | array  | OPTIONAL: A response object of some sort    |
+| query\_info  | object | OPTIONAL: A [[Complex Object Paged Query Info][Paged Query Info]] object         |
+| error        | object | OPTIONAL: A [[Complex Object Protocol Error][Protocol Error]] object           |
+| notices      | array  | OPTIONAL: An array of [[Complex Object Server Notice][Server Notice]] objects |
+
+A Response Envelope will have either "result\_page" and "query\_info"
+defined or "error" defined, but not both.
+
+The nature of the objects provided in the "result\_page" array is
+specified by the protocol operation being performed.
+
+Clients should ignore any unrecognized additional fields in the Paged
+Response Envelope.  Future protocol versions may include additional
+optional fields for "out-of-band" notifications.
+
+*** Protocol Error
+# <<Complex Object Protocol Error>>
+
+An object with the following fields:
+
+|--------------+--------+--------------------------------------------|
+| name         | type   | description                                |
+|--------------+--------+--------------------------------------------|
+| message      | string | A human-readable description of the error  |
+| class        | string | The name of the specific type of error     |
+| superclasses | array  | The names of the superclasses of the error |
+
+The error class and superclasses are expected to be usable by client
+programs for more intelligent error handling.
+
+Clients should ignore any unrecognized additional fields in the
+Protocol Error.  The server may include additional fields on a
+per-error-class basis.
+
+A simple example of more intelligent error handling using additional
+Protocol Error fields is [[Error Class Single Field Input Error][Single Field Input Error]], which provides
+information about which field contains invalid information, allowing
+clients to indicate problematic input by highlighting the fields
+instead of simply displaying the error message.
+
+The "superclasses" lists in the entries below is not guaranteed to be
+exhaustive, there may be other classes involved in actual practice.
+However, the superclasses listed will always appear, and will always
+be in the order given.  An example here is that the current
+implementation for [[Error Class Simple Error][Simple Error]] gives a superclass list of
+"SIMPLE-CONDITION", "ERROR", while the entry below only lists [[Error Class Error][Error]].
+
+In general, clients should only attempt intelligent handling of errors
+that are subclasses of [[Error Class Protocol Error][Protocol Error]].  Developers are encouraged to
+report cases where they would like to handle an error that is not a
+subclass of [[Error Class Protocol Error][Protocol Error]] to the server developers for advice, a
+special dispensation, or for a revision to the server to be made (at
+the discretion of the server developers).
+
+**** Error
+# <<Error Class Error>>
+
+ - Error class: "ERROR"
+
+ - Superclasses: none
+
+ - Default HTTP response: 500 (Internal Server Error)
+
+An error.  All errors contain this class in their superclass list.
+
+**** Protocol Error
+# <<Error Class Protocol Error>>
+
+ - Error class: "PROTOCOL-ERROR"
+
+ - Superclasses: [[Error Class Error][Error]]
+
+ - Default HTTP response: 400 (Bad Request)
+
+An error explicitly considered part of the server protocol (as opposed
+to an error internal to the server).
+
+**** Input Error
+# <<Error Class Input Error>>
+
+ - Error class: "INPUT-ERROR"
+
+ - Superclasses: [[Error Class Protocol Error][Protocol Error]], [[Error Class Error][Error]]
+
+ - Default HTTP Response: 400 (Bad Request)
+
+An error relating to input validation.
+
+**** Single Field Input Error
+# <<Error Class Single Field Input Error>>
+
+ - Error class: "SINGLE-FIELD-INPUT-ERROR"
+
+ - Superclasses: [[Error Class Input Error][Input Error]], [[Error Class Protocol Error][Protocol Error]], [[Error Class Error][Error]]
+
+ - Default HTTP Response: 400 (Bad Request)
+
+An input validation error involving a single input field.
+
+This error class has additional fields:
+
+|----------------------+---------+-----------------------------------------------------|
+| name                 | type    | description                                         |
+|----------------------+---------+-----------------------------------------------------|
+| field\_name          | string  | The name of the field which failed input validation |
+| field\_path          | array   | An array of parent fields (for complex objects)     |
+| field\_required      | boolean | True if the field is required to be present         |
+| field\_specification | string  | A description of what input is valid for the field  |
+| field\_value         | any     | The field value as seen by the server               |
+
+**** Endpoint Not Found
+# <<Error Class Endpoint Not Found>>
+
+ - Error class: "ENDPOINT-NOT-FOUND"
+
+ - Superclasses: [[Error Class Protocol Error][Protocol Error]], [[Error Class Error][Error]]
+
+ - Default HTTP Response: 404 (Not Found)
+
+A request was made to the server to an endpoint that is not defined.
+
+This error class has an additional field:
+
+|----------+--------+-----------------------------------|
+| name     | type   | description                       |
+|----------+--------+-----------------------------------|
+| endpoint | string | The "script name" of the endpoint |
+
+**** Resource Not Found
+# <<Error Class Resource Not Found>>
+
+ - Error class: "RESOURCE-NOT-FOUND"
+
+ - Superclasses: [[Error Class Protocol Error][Protocol Error]], [[Error Class Error][Error]]
+
+ - Default HTTP Response: 404 (Not Found)
+
+A resource (auction lot, artist, image, /et cetera/) was not found in
+the database.
+
+**** Simple Error
+# <<Error Class Simple Error>>
+
+ - Error class: "SIMPLE-ERROR"
+
+ - Superclasses: [[Error Class Error][Error]]
+
+ - Default HTTP Response: 400 (Bad Request)
+
+An error for which no specific class has been defined.
+
+These errors are typically used in cases where client software did
+something that it shouldn't have done (thus, should be addressed by
+the client programmer before the software is released), where the
+server software dropped the ball badly (a so-called "CANTHAPPEN"
+scenario), or where appropriate error classes have yet to be defined.
+
+Client developers are encouraged to request more specific error
+classes for cases that they would like to be able to handle
+programmatically.
+
+Over time, the server should be moving away from using these errors in
+favor of specific error classes, as error messages for error classes
+can, in theory, be localized, while the more generic errors do not
+provide a localization hook.
+
+*** Response Envelope
+# <<Complex Object Response Envelope>>
+
+An object with the following fields:
+
+|----------+--------+---------------------------------------------|
+| name     | type   | description                                 |
+|----------+--------+---------------------------------------------|
+| response | object | OPTIONAL: A response object of some sort    |
+| error    | object | OPTIONAL: A [[Complex Object Protocol Error][Protocol Error]] object           |
+| notices  | array  | OPTIONAL: An array of [[Complex Object Server Notice][Server Notice]] objects |
+
+A Response Envelope will have one field of either "response" or
+"error" defined, but not both.
+
+The nature of the object provided for the "response" field is
+specified by the protocol operation being performed.
+
+Clients should ignore any unrecognized additional fields in the
+Response Envelope.  Future protocol versions may include additional
+optional fields for "out-of-band" notifications.
+
+*** Server Notice
+# <<Complex Object Server Notice>>
+
+Not currently implemented, intended to pass messages about scheduled
+downtime, the system being read-only due to master database failover,
+and so on.
+
+** Protocol Operations
+*** Search using JSON
+# <<Protocol Operation Search using JSON>>
+ - Request type :: POST
+ - URL path :: <server>/v1/search
+ - Requires :: valid [[Authorization Access Token][Access Token]]
+ - Response :: uses a [[Complex Object Paged Response Envelope][Paged Response Envelope]]
+
+The /search endpoint takes a [[*Search%20Object][Search Object]].
+
+It returns a paged list of  [[*Complex%20Objects][Complex Object]]s that match.
+
+**** Successful Examples
+
+***** Person name
+
+Search for a person
+
+(Output JSON reformatted for legibility.)
+
+#+begin_src sh :results output code
+curl -H 'Authorization: Bearer 1-N' -D - -k \
+  -d '{type: "person",
+       q: "Maxwell Claims"
+      }' \
+  http://localhost:8042/v1/search; echo
+#+end_src
+
+#+BEGIN_SRC js  
+  {"result_page":[{"type":"person",
+                   "id":1214,
+                   "first_name":"",
+                   "last_name":"",
+                   "company_name":"Maxwell Claims Inc"},
+                  {"type":"person",
+                   "id":1425,
+                   "first_name":"",
+                   "last_name":"",
+                   "company_name":"Maxwell Claims Service"},
+                  {"type":"person",
+                   "id":13395,
+                   "first_name":"Jean Michel",
+                   "last_name":"Reysset","company_name":"Maxwell Claims"},
+                  {"type":"person","id":13455,"first_name":"Brent ","last_name":"Bryde","company_name":"Maxwell Claims"},{"type":"person","id":14543,"first_name":"Judy","last_name":"Wong","company_name":"Maxwell Claims"},{"type":"person","id":14605,"first_name":"Mai","last_name":"Lien","company_name":"Maxwell Claims"},{"type":"person","id":14811,"first_name":null,"last_name":"Maxwell Claims","company_name":null},{"type":"person","id":15179,"first_name":"Stephen","last_name":"Ward","company_name":"Maxwell Claims"},{"type":"person","id":15626,"first_name":null,"last_name":null,"company_name":"MAXWELL CLAIMS - MONTREAL"},{"type":"person","id":15865,"first_name":"Timothy","last_name":"So","company_name":"Maxwell Claims "},{"type":"person","id":16133,"first_name":"Celine ","last_name":"Perron","company_name":"maxwell claims "},{"type":"person","id":16768,"first_name":"Mylene","last_name":"Boisseau-Touchette","company_name":"maxwell claims service"},{"type":"person","id":18269,"first_name":"Maxwell Claims ","last_name":null,"company_name":null},{"type":"person","id":19573,"first_name":null,"last_name":null,"company_name":"Maxwell Claims Sevices"},{"type":"person","id":25582,"first_name":"Twila","last_name":"McInnis","company_name":"Maxwell Claims Inc."},{"type":"person","id":25776,"first_name":"Carol","last_name":"Campbell","company_name":"Maxwell Claims"},{"type":"person","id":25955,"first_name":"Susan","last_name":"Clark","company_name":"Maxwell Claims"}],
+   "total_num_results":17}
+#+END_SRC
+
+
+*** Update Record
+
+ - Request type :: POST
+ - URL path :: <server>/v1/update
+ - Requires :: valid [[Authorization Access Token][Access Token]]
+ - Response :: uses a [[Complex Object Response Envelope][Response Envelope]]
+
+The /update endpoint takes a subset of any [[*Complex%20Objects][Complex Object]] with =type=
+and =id= fields.
+
+Returns the record that was updated.
+
+**** Successful Example
+
+Update a [[*Claim%20Transaction%20Record][Claim Transaction Record]].
+
+(Output JSON reformatted for legibility.)
+
+#+begin_src sh :results output code
+curl -H 'Authorization: Bearer 1-N' -D - -k \
+  -d '{type: "claim-transaction",
+       id: 165424,
+       cheque_number: "This a now another number!"
+      }' \
+  http://localhost:8042/v1/update; echo
+#+end_src
+
+#+BEGIN_SRC text
+  HTTP/1.1 200 OK
+  Content-Length: 105
+  Date: Tue, 19 Aug 2014 03:03:17 GMT
+  Server: Hunchentoot 1.2.27
+  Content-Type: application/json
+  
+  {"id":165424,
+   "claim_id":30119,
+   "date":"2013-08-20T00:00:00Z",
+   "cheque_number":"This a now another number!"}
+#+END_SRC
+
+#+BEGIN_SRC sh
+HTTP/1.1 200 OK
+Content-Length: 92
+Date: Tue, 19 Aug 2014 00:43:29 GMT
+Server: Hunchentoot 1.2.27
+Content-Type: application/json
+
+{"yay":{"type":"claim-transaction","id":165424,"cheque_number":"This a now another number"}}
+#+END_SRC
+
+
+[[file:~/maxwell-claims/lib/maxclaims-ecm/endpoint/update.lisp][:MAX-ECM/ENDPOINT/UPDATE]]
+
+** Protocol Operations by URL Path
+*** <server>/v1/search
+ - POST: [[Protocol%20Operation%20Search%20using%20JSON][Search using JSON]]
+
+* SQL interface 
+
+** *Crane* : An ORM for Common Lisp
+
+
+
+#+BEGIN_QUOTE
+- Non-opinionated  :: Crane doesn't drink the ORM Kool Aid: You won't
+     spend a single minute struggling with an interface that claims to
+     be “simple” yet forces you into a limited vision of how databases
+     should work. [...]
+
+- Explicit without being verbose :: Crane doesn't create tables you
+     don't know about, implicitly follow relations, or generate any
+     unexpected SQL. There are no surprises here.
+
+http://eudoxia0.github.io/crane/
+#+END_QUOTE
+
