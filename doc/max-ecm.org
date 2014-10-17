@@ -245,6 +245,8 @@ A JSON object with the following fields:
 | claim_id       | integer        | The unique ID of a [[*Claim%20Record][Claim Record]]                  |
 | date           | string         | A [[Simple Type Timestamp][Timestamp]] for the time of this transaction     |
 | cheque\_number | string or null | The "Cheque Number" assigned to this transaction |
+| approved       | boolean        | If this transaction has been approved            |
+
 
 *** OAuth Error
 # <<Complex Object OAuth Error>>
