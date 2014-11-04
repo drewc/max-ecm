@@ -39,56 +39,11 @@
     base-result))
 
 
-;;; Endpoints are defined in terms of a name, but call functions with
-;;; derived names and specific type signatures.
-
-(defun endpoint-function-name (endpoint-name method)
-  (let ((function-name-name (format nil "~A/~A" endpoint-name method)))
-    (intern function-name-name (symbol-package endpoint-name))))
-
-(defgeneric count-register-groups (regexp)
-  (:method ((regexp list))
-    (let ((body-count (loop for element in (cdr regexp)
-			 summing (count-register-groups element))))
-      (if (eq :register (car regexp))
-	  (values (1+ body-count))
-	  (values body-count))))
-  (:method ((regexp t))
-    (values 0)))
-
-(defun endpoint-function-type (regexp)
-  ;; The type of an endpoint-function is dependent entirely upon its
-  ;; regexp (and not its method).  It is a function that takes as many
-  ;; (OR STRING NULL) arguments as there are register groups in the
-  ;; regexp and does not return (it is expected to NLX).  We use here
-  ;; the somewhat controversial SBCL interpretation of a NIL
-  ;; value-typespec for a function type specifier as not returning.
-  `(function ,(loop repeat (count-register-groups
-			    (if (stringp regexp)
-				(cl-ppcre:parse-string regexp)
-				regexp))
-		 collect '(or string null))
-	     nil))
-
-(defmacro declaim-endpoint-functions (name regexp)
-  `(declaim (ftype ,(endpoint-function-type
-		     ;; KLUDGE: Strip the quote from a regexp parse
-		     ;; tree via EVAL, while leaving unparsed regexps
-		     ;; (strings) alone.
-		     (eval regexp))
-		   ,@(loop for method in '(:get :post :delete :archive)
-			collect (endpoint-function-name name method)))))
-
-
 ;;; An endpoint specifier.
 
 (defclass endpoint ()
   ((name :initarg name :reader endpoint-name)
-   (regexp :initarg regexp :reader endpoint-regexp)
-   (get-fdefn :initarg get-fdefn)
-   (post-fdefn :initarg post-fdefn)
-   (delete-fdefn :initarg delete-fdefn)
-   (archive-fdefn :initarg archive-fdefn)))
+   (regexp :initarg regexp :reader endpoint-regexp)))
 
 (defmethod print-object ((endpoint endpoint) stream)
   (print-unreadable-object (endpoint stream :type t)
@@ -97,27 +52,18 @@
     (print (endpoint-regexp endpoint) stream)))
 
 (defun make-endpoint (name regexp)
-  ;; KLUDGE: We use some SBCL guts in order to allow redefinition of
-  ;; handler functions to take effect automatically without having to
-  ;; pay the cost of a full %COERCE-CALLABLE-TO-FUN at runtime.
-  (flet ((fdefn-for (method)
-	   (let ((function-name (endpoint-function-name name method)))
-	     (sb-kernel:fdefinition-object function-name t))))
-    (make-instance 'endpoint
-		   'name name
-		   'regexp regexp
-		   'get-fdefn (fdefn-for :get)
-		   'post-fdefn (fdefn-for :post)
-		   'delete-fdefn (fdefn-for :delete)
-                   'archive-fdefn (fdefn-for :archive))))
+  (make-instance 'endpoint
+		 'name name
+		 'regexp regexp))
+
+(defun endpoint-function-name (endpoint-name method)
+  (let ((function-name-name (format nil "~A/~A" endpoint-name method)))
+    (intern function-name-name (symbol-package endpoint-name))))
+
 
 (defun endpoint-function (endpoint method)
-  (or (sb-kernel:fdefn-fun
-       (ecase method
-	 (:get (slot-value endpoint 'get-fdefn))
-	 (:post (slot-value endpoint 'post-fdefn))
-	 (:delete (slot-value endpoint 'delete-fdefn))
-         (:archive (slot-value endpoint 'archive-fdefn))))
+  (or (ignore-errors
+	(symbol-function (endpoint-function-name (endpoint-name endpoint) method)))
       (error "No ~A method handler defined for endpoint ~A"
 	     method (endpoint-name endpoint))))
 
@@ -140,7 +86,6 @@ scheme for the endpoint, NAME provides the base for the handler
 function names."
   `(progn
      (%define-endpoint ',name ,regexp)
-     (declaim-endpoint-functions ,name ,regexp)
      ',name))
 
 
