@@ -19,11 +19,12 @@
 (defvar *test* 1)
 (defun send-forgot-password-mail (username reason)
   (let ((subject (concatenate 
-		  'string "TEST: '" username "' "
+		  'string "'" username "' "
 		  "has forgotten the password for ECM"))
 	(body (concatenate 
-		  'string "TEST: '" username "' "
-		  "has forgotten the password for ECM." (string #\Newline)
+		  'string "'" username "' "
+		  "has forgotten the password for ECM." 
+		  (string #\Newline)
 		  (string #\Newline)
 		  (when reason 
 		    (format nil "Reason: ~%~A~%~%" reason))
