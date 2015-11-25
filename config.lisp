@@ -12,7 +12,7 @@
   '("maxclaims@drewc.ca" "y3am2e!!"))
 
 (defparameter *database-connection-parameters* 
-  '("maxclaims" "maxclaims" "y3am2e!!" "localhost"))
+  '("maxclaims" "maxclaims" "y3am2e!!" "db.maxwellclaims.net" :port 5433))
 
 (defparameter *server-public-url* "http://webinsure.maxwellclaims.net:8042")
 

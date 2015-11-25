@@ -48,7 +48,9 @@
 		(list (first *database-connection-parameters*)
 		      (format nil "mu_~a" (record-id user))
 		      password 
-		      (fourth *database-connection-parameters*)))
+		      (fourth *database-connection-parameters*)
+                      (fifth *database-connection-parameters*)
+                      (sixth *database-connection-parameters*)))
 	       (postmodern:*database* nil))
 	  (with-database (:writable t)
 	    (funcall function user))))))
