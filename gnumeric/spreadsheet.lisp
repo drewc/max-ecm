@@ -41,6 +41,7 @@
     (prog1 empty
       (when name (setf (spreadsheet-name empty) name)))))
 
+
 (defstruct spreadsheet-title 
   title 
   (block NIL))
@@ -205,7 +206,7 @@
 	 (<gnm>   
 	   (<> ("gnm:Cells")
 	     (loop :for line in report 
-		:for row upfrom (1+ header-row)
+		:for row upfrom (+ 1 header-row)
 		:do (loop :for (name . original-value)  in line
 		       :for column :upfrom start-column 
 		       :do 
@@ -256,6 +257,10 @@
 						   1)
 						  (t 2.5))))
 				       (/ (* 10 (length value)) den)))))
+			 
+			 
+			 (when column-info
+			 )	  
 			 (<cell>  
 			  value
 			  :row row
@@ -281,40 +286,7 @@
 	       (row-identifier row)))
   
 
-	    
-
-(defun create-spreadsheet-using-absolute-pointers (name original-spreadsheet
-						   &key (start-column 2)
-						     (start-row 2))
-  (let* ((original-name (spreadsheet-name original-spreadsheet))
-	 (original-cells (spreadsheet-cells original-spreadsheet))
-	 (sorted-col-cell-children (sort (copy-list (stp:list-children original-cells))
-				    '< :key 'cell-column))
-	 (sorted-row-cell-children (sort (copy-list (stp:list-children original-cells))
-					 '< :key 'cell-row))
-	 (min-row (cell-row (first sorted-row-cell-children)))
-	 (min-column (cell-column (first sorted-col-cell-children)))
-	 (cells (let ((e 0 ))
-		  (<gnm> 
-		    (<> ("gnm:Cells")
-		      (stp:do-children (c original-cells)
-			(let* ((row (cell-row c))
-			       (column (cell-column c))
-			       (row-difference (- row min-row))
-			       (col-difference (- column min-column)))
-			  (<cell> 
-			   (format nil "='~A'!$~A~A"
-				   original-name
-				   (column-identifier column)
-				   (row-identifier row))
-			   :row (+ start-row row-difference)
-			   :column (+ start-column col-difference)
-			   :value-type nil
-			   :expression-id (incf e))))))))
-	 (sheet (make-spreadsheet name)))
-
-    (stp:replace-child sheet (spreadsheet-cells sheet) cells)
-    (stp:copy sheet)))
+	   
     
 (defun <merge> (&key from to)
   (<> ("gnm:Merge")
@@ -450,13 +422,16 @@
   sheet)
     
 		    
-(defun create-spreadsheet (report &key title name)
-  (let* ((title (create-spreadsheet-from-title title))
-	 (title-cells (spreadsheet-cells title))
+(defun create-spreadsheet (report &key title name )
+  (let* ((title (when title (create-spreadsheet-from-title title)))
+	 (title-cells (when title (spreadsheet-cells title)))
 	 (title-max-row 
-	  (apply #'max (mapcar #'cell-row (remove-if-not (lambda (e) (typep e 'stp:element))
-							 (stp:list-children title-cells)))))
-	 (sheet (create-spreadsheet-from-alist 
+	  (if (not title) 
+	      0
+	      (apply #'max (mapcar #'cell-row 
+				   (remove-if-not (lambda (e) (typep e 'stp:element))
+						  (stp:list-children title-cells))))))
+	  (sheet (create-spreadsheet-from-alist 
 		 name report  
 		 :start-row (+ 2 title-max-row)))
 	 (document (empty-document))
@@ -467,23 +442,25 @@
     
     
     (stp:delete-children sheets)
-    (adopt-children (spreadsheet-rows sheet)
-		    (spreadsheet-rows title))
-    (adopt-children (spreadsheet-columns sheet)
-		    (spreadsheet-columns title))
-    (if (spreadsheet-merged-regions sheet)
-	(adopt-children (spreadsheet-merged-regions sheet)
-			(spreadsheet-merged-regions title))
-	(stp:append-child sheet (stp:copy (spreadsheet-merged-regions title))))
+    (when title 
+      (adopt-children (spreadsheet-rows sheet)
+		      (spreadsheet-rows title))
+      (adopt-children (spreadsheet-columns sheet)
+		      (spreadsheet-columns title))
+
+      (if (spreadsheet-merged-regions sheet)
+	  (adopt-children (spreadsheet-merged-regions sheet)
+			  (spreadsheet-merged-regions title))
+	  (stp:append-child sheet (stp:copy (spreadsheet-merged-regions title))))
     
 		    
-    (adopt-children (spreadsheet-cells sheet) 
-		    title-cells)
+      (adopt-children (spreadsheet-cells sheet) 
+		      title-cells)
     #+n(adopt-children (spreadsheet-styles title)
 		       (spreadsheet-styles sheet))
     #+n(stp:delete-children (spreadsheet-styles sheet))
     (adopt-children (spreadsheet-styles sheet)
-		    (spreadsheet-styles title))
+		    (spreadsheet-styles title)))
 
     (stp:delete-children sheet-name-index)
     (stp:append-child sheet-name-index  
@@ -530,272 +507,20 @@
 				      :start-row (1+ (cell-row c)) 
 				      :foreground-color "4444:4444:4444")))))
       document)))
-			   
 
-
-(defun test-spreadsheet ()
-
-  (let* ((title (create-spreadsheet-from-title 
-		 (make-spreadsheet-title :title `("Bordereau for" . "Test Contract") 
-					 :block '(("Contract" 
-						   ("Number" . "Test Contract")
-						   ("Effective" . "Test Contract")
-						   ("Effecve" . "Test Contract")
-						   ("Risk Type" . "ASD"))
-						  ("Start Date" . "Foo Risk!")
-						  ("End Data" . "Foo Risk!")))))
-	 (title-cells (spreadsheet-cells title))
-	 (title-max-row 
-	  (apply #'max (mapcar #'cell-row 
-			       (remove-if-not (lambda (e) (typep e 'stp:element))
-					      (stp:list-children title-cells)))))
-	 
-	 (sheet (create-spreadsheet-from-alist 
-		 "Bordereau" *test-report*  
-		 :start-row (+ 2 title-max-row)))
-	 
-					 
-	 (document (empty-document))
+(defun create-white-oak-spreadsheet (report &key title name)
+  (let* ((sheet (create-spreadsheet-from-alist 
+		 name report  
+		 :start-row 19
+		 :create-header? nil))
+	 (document (white-oak-document))
 	 (sheets (stp:find-recursively-if 
 		  (of-name "Sheets") document))
 	 (sheet-name-index 
-	  (stp:find-recursively-if (of-name "SheetNameIndex") document)))
+	  (stp:find-recursively-if (of-name "SheetNameIndex") document))
+	 (first-sheet (stp:find-recursively-if 
+		       (of-name "Sheet") sheets)))
+    (adopt-children first-sheet sheet)
     
-    
-    (stp:delete-children sheets)
-    (adopt-children (spreadsheet-rows sheet)
-		    (spreadsheet-rows title))
-    (adopt-children (spreadsheet-columns sheet)
-		    (spreadsheet-columns title))
-    (if (spreadsheet-merged-regions sheet)
-	(adopt-children (spreadsheet-merged-regions sheet)
-			(spreadsheet-merged-regions title))
-	(stp:append-child sheet (stp:copy (spreadsheet-merged-regions title))))
-    
-		    
-    (adopt-children (spreadsheet-cells sheet) 
-		    title-cells)
-    #+n(adopt-children (spreadsheet-styles title)
-		       (spreadsheet-styles sheet))
-    #+n(stp:delete-children (spreadsheet-styles sheet))
-    (adopt-children (spreadsheet-styles sheet)
-		    (spreadsheet-styles title))
-
-    (stp:delete-children sheet-name-index)
-    (stp:append-child sheet-name-index  
-		      (<gnm> (<> ("gnm:SheetName" "Cols" "256" "Rows" "65536")
-			       (<> (:text (spreadsheet-name sheet))))))
-					;
-					;<gnm:SheetName gnm:Cols="256" gnm:Rows="65536">Sheet1</gnm:SheetName>
-
-    (stp:append-child sheets sheet)
-    
-    (let* ((cell-rows (mapcar #'cell-row 
-			      (remove-if-not (lambda (e) (typep e 'stp:element))
-					     (stp:list-children (spreadsheet-cells sheet)))))
-	   (cell-cols (mapcar #'cell-column 
-			      (remove-if-not (lambda (e) (typep e 'stp:element))
-					     (stp:list-children (spreadsheet-cells sheet)))))
-	   (cell-min-row (+ 3 title-max-row))
-	   (cell-min-col (apply #'min cell-cols))
-	   (cell-max-row (apply #'max cell-rows))
-	   (cell-max-col (apply #'max cell-cols))
-	   (max-row-cells (remove-if-not (lambda (n) (eql cell-max-row n))
-					 (remove-if-not (lambda (e) (typep e 'stp:element))
-							(stp:list-children (spreadsheet-cells sheet)))
-					 :key #'cell-row)))
-      (dolist (c max-row-cells)
-	(when (eql (cell-value-type c) 'float)
-	  (stp:append-child (spreadsheet-cells sheet)
-			    (<gnm> (<cell> 
-				    (format nil "=sum(~A~A:~A~A)"
-					    (column-identifier 
-					     (cell-column c))
-					    (row-identifier
-					     (+ 3 title-max-row))
-					    (column-identifier 
-					     (cell-column c))
-					    (row-identifier
-					     (cell-row c)))
-				    :value-type NIL
-				    :value-format (cell-value-format c)
-				    :row (1+ (cell-row c))
-				    :column (cell-column c))))
-	  (stp:append-child 
-	   (spreadsheet-styles sheet)
-	   (<gnm> 
-	     (<accounting-style-region> :start-column (cell-column c)
-				      :start-row (1+ (cell-row c)) 
-				      :foreground-color "4444:4444:4444")))))
-	  
-      (alexandria:with-output-to-file  (s (merge-pathnames 
-					   "gnumeric/test-test.xml"
-					   (asdf:system-source-directory 
-					    :max-ecm))
-					  :if-exists :supersede)      
-	(stp:serialize document (cxml:make-character-stream-sink s))))))
-	  
-					 
-(defun test-bordereau (&key (header-row 0)
-			 (start-column 0))
-  (let* ((report *test-report*)
-	 (report-line (first report))
-	 (document (empty-document))
-	 (sheets (stp:find-recursively-if 
-		  (of-name "Sheets") document))
-	 (sheet (stp:find-child-if (of-name "Sheet") sheets))
-	 
-
-	    ;;; Ok, so headers header-row, number of columns is report
-	 (header-styles (<gnm> (spreadsheet-header-styles 
-				:start-row header-row
-				:start-column start-column
-				:end-column (+ start-column (1- (length report-line))))))
-	 
-	 ;;; now the width of columns that headers need.
-	 (header-rows)
-	 (header-columns 
-	  (multiple-value-bind (r c) 
-	      (rows/cols-for-headings report-line 
-				      :start-column start-column
-				      :start-row header-row)
-	    (setf header-rows r)
-	    c))
-	  
-	 
-	 (header-cells 
-	  (<gnm>   
-	    (<> ("gnm:Cells")
-	      (loop :for (name . value) 
-		 :in (first report) 
-		 :for i upfrom 0
-		 :do (<cell> 
-		  name 
-		  :row header-row
-		  :column i
-		  :value-type (cell-value-type 'string))))))
-
-	 ;;; now the data starts at (1+ header-row), 
-	 (report-cells 
-	  (<gnm>   
-	    (<> ("gnm:Cells")
-	      (loop :for line in report 
-		 :for row upfrom (1+ header-row)
-		 :do (loop :for (name . original-value)  in line
-			:for column :upfrom start-column 
-			:do 
-			(let* ((value 
-				(cond 
-				  ((typep original-value 'simple-date:timestamp)
-				   (format nil "~{~A-~A-~A~}" 
-					   (multiple-value-list
-					    (simple-date:decode-date original-value))))
-				  (t (princ-to-string original-value))))
-			       (value-type 
-				(cond 
-				  ((or (equal "" value)
-				       (typep original-value 's-sql:db-null))
-				   (cell-value-type 'empty))
-				  ;; check if it is currency
-				  ((char= #\$ (aref value 0))
-				   (setf value (subseq value 1))
-				   ;; set the accounting style region	
-				   #+nil(stp:append-child 
-				    styles (<gnm> (accounting-style-region 
-						   :start-column column
-						   :start-row row)))
-				   (cell-value-type 'float))
-				  (t (cell-value-type 'string))))
-			       (value-format 
-				(cond ((equal value-type (cell-value-type 'float))
-				       "$#,##0_);[Red]($#,##0)")))
-			       (column-info (stp:find-child-if 
-					     (lambda (e) 
-					       (string= (princ-to-string column) 
-							(stp:attribute-value e "No")))
-					     header-columns))
-			       (column-width 
-				(read-from-string 
-				 (stp:attribute-value column-info "Unit")))
-			       )
-					     
-			  ;;; now, check the column. If the width is
-			  ;;; to small for this, then make it bigger.
-			  (setf (stp:attribute-value column-info "Unit") 
-				(format 
-				 nil "~$" 
-				 (max column-width
-				      (let ((den 
-					     (cond ((equal (cell-value-type 'float)
-							   value-type)
-						    1)
-						   (t 1.5))))
-					(/ (* 10 (length value)) den)))))
-			  
-			  
-			  (<cell>  
-			   value
-			   :row row
-			   :column column
-			   :value-type value-type 
-			   :value-format value-format))))))))
-    
-    
-    (break "Spreadsheet named ~A" (spreadsheet-name sheet))
-	    (stp:do-children (c header-styles)      
-	      (stp:append-child styles (stp:copy c)))
-	    (stp:do-children (c header-columns)      
-	      (stp:append-child columns (stp:copy c)))
-    
-	    (stp:replace-child sheet cells header-cells)
-
-	    (stp:do-children (c report-cells)      
-	      (stp:append-child header-cells (stp:copy c)))
-
-	    (stp:delete-children sheets)
-	    (stp:append-child sheets sheet)
-
-	    (alexandria:with-output-to-file  (s (merge-pathnames 
-						 "gnumeric/test-test"
-						 (asdf:system-source-directory 
-						  :max-ecm))
-						:if-exists :supersede)      
-	      (stp:serialize document (cxml:make-character-stream-sink 
-				       s )))))
-    
-  
-(defun test-headers ()
-  (let* ((document (stp:copy *empty-gnumeric-document*))
-	 
-	 
-	 (styles (stp:find-child-if (of-name "Styles") sheet))
-	 (cells (stp:find-child-if (of-name "Cells") sheet))
-	 (rows (stp:find-child-if (of-name "Rows") sheet))
-	 (columns (stp:find-child-if (of-name "Cols") sheet))
-	 
-	 (accounting-style-region (<gnm> (accounting-style-region  
-					  :start-column 2 
-					  :end-column 2
-					  :start-row 2
-					  :end-row 16)))
-	 (test-cells (<gnm> (test-cells)))
-	 (test-rows (<gnm> (test-rows)))
-	 (max-row (stp:find-child-if (of-name "MaxRow") sheet))
-	 (max-col (stp:find-child-if (of-name "MaxCol") sheet)))
-    (stp:map-children nil (lambda (c)
-			    (stp:append-child styles (stp:copy c)))
-		      header-styles)
-    (stp:append-child styles accounting-style-region)
-    (stp:replace-child sheet cells test-cells)
-    (stp:replace-child sheet rows test-rows)
-    
-    (setf (stp:data (stp:first-child max-row)) "1"
-	  (stp:data (stp:first-child max-col)) "10")
-    (alexandria:with-output-to-file  (s (merge-pathnames 
-					 "gnumeric/test-test"
-					 (asdf:system-source-directory 
-					  :max-ecm))
-					:if-exists :supersede)      
-      (stp:serialize document (cxml:make-character-stream-sink 
-			       s )))))
-					
+    document))
+		  
