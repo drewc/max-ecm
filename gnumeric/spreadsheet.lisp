@@ -224,14 +224,20 @@
 				      (typep original-value 's-sql:db-null))
 				  (cell-value-type 'empty))
 				 ;; check if it is currency
-				 ((char= #\$ (aref value 0))
-				  (setf value (subseq value 1))
-				  ;; set the accounting style region	
-				  (when format-dollarsign 
-                                    (stp:append-child 
-                                     styles (<gnm> (<accounting-style-region>
-                                                    :start-column column
-                                                    :start-row row))))
+				 ((or 
+                                   (char= #\$ (aref value 0))
+                                   (string= "-$" value :end2 2))
+				  (setf value 
+                                        (remove #\$ (remove #\, value)))
+				  ;; set the accounting style region
+                                  (stp:append-child 
+                                   styles 
+                                   (<gnm> 
+                                     (apply #'<accounting-style-region>
+                                            :start-column column
+                                            :start-row row
+                                            (unless format-dollarsign
+                                              (list :format "0.00")))))
 				  (cell-value-type 'float))
 				 (t (cell-value-type 'string))))
 			      (value-format 
@@ -488,6 +494,7 @@
 					 (remove-if-not (lambda (e) (typep e 'stp:element))
 							(stp:list-children (spreadsheet-cells sheet)))
 					 :key #'cell-row)))
+      ;; For the Totals: row
       (dolist (c max-row-cells)
 	(when (eql (cell-value-type c) 'float)
 	  (stp:append-child (spreadsheet-cells sheet)
@@ -505,16 +512,18 @@
 				    :value-format (cell-value-format c)
 				    :row (1+ (cell-row c))
 				    :column (cell-column c))))
-	  (when format-dollarsign 
             (stp:append-child 
              (spreadsheet-styles sheet)
              (<gnm> 
-               (<accounting-style-region> :start-column (cell-column c)
-                                          :start-row (1+ (cell-row c)) 
-                                          :foreground-color "4444:4444:4444"))))))
+               (apply #'<accounting-style-region> 
+                      :start-column (cell-column c)
+                      :start-row (1+ (cell-row c)) 
+                      :foreground-color "4444:4444:4444"
+                      (unless format-dollarsign
+                        (list :format "0.00")))))))
       document)))
 
-(defun create-white-oak-spreadsheet (report &key title name)
+#+(or)(defun create-white-oak-spreadsheet (report &key title name)
   (let* ((sheet (create-spreadsheet-from-alist 
 		 name report  
 		 :start-row 19

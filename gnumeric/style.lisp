@@ -109,14 +109,15 @@
        (start-row 0)
        (end-row start-row)
        (border '(:|Style| 1 :|Color| "C0C0:C0C0:C0C0"))
-       (foreground-color "0:0:0"))
+       (foreground-color "0:0:0")
+       (format "_($* #,##0.00_);_($* (#,##0.00);_($* \"-\"??_);_(@_)"))
   (<> (style-region 
        :start-column start-column
        :end-column end-column
        :start-row start-row
        :end-row end-row)
     (<> (style 
-	 :format "_($* #,##0.00_);_($* (#,##0.00);_($* \"-\"??_);_(@_)"
+	 :format format
 	 :horizontal-alignment "GNM_HALIGN_GENERAL"
 	 :vertical-alignment "GNM_VALIGN_BOTTOM"	 
 	 :background-color "FFFF:FFFF:FFFF" 
@@ -125,7 +126,8 @@
       (<style-border> 
        :bottom border
        :right border
-       :left border))))
+       ;; :left border
+       ))))
 
 (defun <spreadsheet-title-styles> (&key 
 				   (start-column 0)
