@@ -161,6 +161,7 @@
 
 (defun create-spreadsheet-from-alist (name alist
 				      &key 
+                                        (format-dollarsign t)
 					(create-header? t)
 					(start-row 0)
 					(start-column 0))
@@ -226,15 +227,18 @@
 				 ((char= #\$ (aref value 0))
 				  (setf value (subseq value 1))
 				  ;; set the accounting style region	
-				  (stp:append-child 
-				   styles (<gnm> (<accounting-style-region>
-						  :start-column column
-						  :start-row row)))
+				  (when format-dollarsign 
+                                    (stp:append-child 
+                                     styles (<gnm> (<accounting-style-region>
+                                                    :start-column column
+                                                    :start-row row))))
 				  (cell-value-type 'float))
 				 (t (cell-value-type 'string))))
 			      (value-format 
 			       (cond ((equal value-type (cell-value-type 'float))
-				      "$#,##0_);[Red]($#,##0)")))
+                                      (if format-dollarsign
+                                          "$#,##0_);[Red]($#,##0)"
+                                          "###0_);[Red](###0)"))))
 			      (column-info 
 			       (stp:find-child-if 
 				  (lambda (e) 
@@ -256,7 +260,7 @@
 							  value-type)
 						   1)
 						  (t 2.5))))
-				       (/ (* 10 (length value)) den)))))
+				       (/ (* 10 (length (princ-to-string value))) den)))))
 			 
 			 
 			 (when column-info
@@ -422,7 +426,7 @@
   sheet)
     
 		    
-(defun create-spreadsheet (report &key title name )
+(defun create-spreadsheet (report &key title name (format-dollarsign t))
   (let* ((title (when title (create-spreadsheet-from-title title)))
 	 (title-cells (when title (spreadsheet-cells title)))
 	 (title-max-row 
@@ -432,8 +436,9 @@
 				   (remove-if-not (lambda (e) (typep e 'stp:element))
 						  (stp:list-children title-cells))))))
 	  (sheet (create-spreadsheet-from-alist 
-		 name report  
-		 :start-row (+ 2 title-max-row)))
+                  name report  
+                  :start-row (+ 2 title-max-row)
+                  :format-dollarsign format-dollarsign))
 	 (document (empty-document))
 	 (sheets (stp:find-recursively-if 
 		  (of-name "Sheets") document))
@@ -500,12 +505,13 @@
 				    :value-format (cell-value-format c)
 				    :row (1+ (cell-row c))
 				    :column (cell-column c))))
-	  (stp:append-child 
-	   (spreadsheet-styles sheet)
-	   (<gnm> 
-	     (<accounting-style-region> :start-column (cell-column c)
-				      :start-row (1+ (cell-row c)) 
-				      :foreground-color "4444:4444:4444")))))
+	  (when format-dollarsign 
+            (stp:append-child 
+             (spreadsheet-styles sheet)
+             (<gnm> 
+               (<accounting-style-region> :start-column (cell-column c)
+                                          :start-row (1+ (cell-row c)) 
+                                          :foreground-color "4444:4444:4444"))))))
       document)))
 
 (defun create-white-oak-spreadsheet (report &key title name)
