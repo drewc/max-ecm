@@ -226,7 +226,8 @@
 				 ;; check if it is currency
 				 ((or 
                                    (char= #\$ (aref value 0))
-                                   (string= "-$" value :end2 2))
+                                   (and (> (length value) 2)
+                                        (string= "-$" value :end2 2)))
 				  (setf value 
                                         (remove #\$ (remove #\, value)))
 				  ;; set the accounting style region
