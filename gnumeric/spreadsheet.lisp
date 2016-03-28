@@ -433,27 +433,43 @@
   sheet)
     
 		    
-(defun create-spreadsheet (report &key title name (format-dollarsign t))
+(defun create-spreadsheet 
+    (report 
+     &key 
+       title name start-row 
+       (format-dollarsign t)
+       (document (empty-document))
+       (create-header t)
+       (document-sheet-name nil))
+       
   (let* ((title (when title (create-spreadsheet-from-title title)))
 	 (title-cells (when title (spreadsheet-cells title)))
 	 (title-max-row 
 	  (if (not title) 
-	      0
+	      -2
 	      (apply #'max (mapcar #'cell-row 
 				   (remove-if-not (lambda (e) (typep e 'stp:element))
 						  (stp:list-children title-cells))))))
-	  (sheet (create-spreadsheet-from-alist 
-                  name report  
-                  :start-row (+ 2 title-max-row)
-                  :format-dollarsign format-dollarsign))
-	 (document (empty-document))
+         (start-row (or start-row (+ 2 title-max-row)))
+         (sheet (create-spreadsheet-from-alist 
+                 name report  
+                 :start-row start-row
+                 :format-dollarsign format-dollarsign
+                 :create-header? create-header))
 	 (sheets (stp:find-recursively-if 
 		  (of-name "Sheets") document))
 	 (sheet-name-index 
-	  (stp:find-recursively-if (of-name "SheetNameIndex") document)))
+	  (stp:find-recursively-if (of-name "SheetNameIndex") document))
+         (delete-document-sheets (not document-sheet-name)))
     
     
-    (stp:delete-children sheets)
+    (when delete-document-sheets 
+      (stp:delete-children sheets)
+      (stp:delete-children sheet-name-index)
+      (stp:append-child sheet-name-index  
+                        (<gnm> (<> ("gnm:SheetName" "Cols" "256" "Rows" "65536")
+                                 (<> (:text (spreadsheet-name sheet)))))))
+
     (when title 
       (adopt-children (spreadsheet-rows sheet)
 		      (spreadsheet-rows title))
@@ -468,25 +484,15 @@
 		    
       (adopt-children (spreadsheet-cells sheet) 
 		      title-cells)
-    #+n(adopt-children (spreadsheet-styles title)
-		       (spreadsheet-styles sheet))
-    #+n(stp:delete-children (spreadsheet-styles sheet))
-    (adopt-children (spreadsheet-styles sheet)
-		    (spreadsheet-styles title)))
-
-    (stp:delete-children sheet-name-index)
-    (stp:append-child sheet-name-index  
-		      (<gnm> (<> ("gnm:SheetName" "Cols" "256" "Rows" "65536")
-			       (<> (:text (spreadsheet-name sheet))))))
-					;
-					;<gnm:SheetName gnm:Cols="256" gnm:Rows="65536">Sheet1</gnm:SheetName>
-
-    (stp:append-child sheets sheet)
     
-    (let* ((cell-rows (mapcar #'cell-row 
+      (adopt-children (spreadsheet-styles sheet)
+                      (spreadsheet-styles title)))
+
+
+ (let* ((cell-rows (mapcar #'cell-row 
 			      (remove-if-not (lambda (e) (typep e 'stp:element))
 					     (stp:list-children (spreadsheet-cells sheet)))))
-	   (cell-cols (mapcar #'cell-column 
+	   #+(or)(cell-cols (mapcar #'cell-column 
 			      (remove-if-not (lambda (e) (typep e 'stp:element))
 					     (stp:list-children (spreadsheet-cells sheet)))))
 	   (cell-min-row (+ 3 title-max-row))
@@ -513,7 +519,7 @@
 				    :value-format (cell-value-format c)
 				    :row (1+ (cell-row c))
 				    :column (cell-column c))))
-            (stp:append-child 
+          (stp:append-child 
              (spreadsheet-styles sheet)
              (<gnm> 
                (apply #'<accounting-style-region> 
@@ -521,8 +527,21 @@
                       :start-row (1+ (cell-row c)) 
                       :foreground-color "4444:4444:4444"
                       (unless format-dollarsign
-                        (list :format "0.00")))))))
-      document)))
+                        (list :format "0.00"))))))))
+
+    (if (not document-sheet-name)
+        (stp:append-child sheets sheet)
+        (let ((the-sheet 
+               (first (stp:filter-children 
+                        (lambda (sheet)
+                          (and (funcall (max-ecm/gnumeric/xml:of-name "Sheet") sheet)
+                               (let ((name (stp:find-child-if (max-ecm/gnumeric/xml:of-name "Name")
+                                                              sheet)))
+                                 (string-equal document-sheet-name (stp:string-value name)))))
+                        sheets))))
+          (max-ecm/gnumeric/xml:adopt-children the-sheet sheet)))
+    document
+   ))
 
 #+(or)(defun create-white-oak-spreadsheet (report &key title name)
   (let* ((sheet (create-spreadsheet-from-alist 
